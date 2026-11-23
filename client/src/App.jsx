@@ -64,7 +64,7 @@ export default function App() {
       setSeconds(0);
       setView("quiz");
     } catch {
-      setError("Gagal terhubung ke server. Pastikan server jalan di port 4000.");
+      setError("Gagal mengambil soal. Pastikan API Vercel dan database sudah aktif.");
     } finally {
       setLoading(false);
     }
