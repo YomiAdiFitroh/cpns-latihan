@@ -1,4 +1,5 @@
 import "dotenv/config";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import express from "express";
@@ -132,12 +133,19 @@ app.get("/api/attempts", async (_req, res) => {
   }
 });
 
-// ---------- Sajikan hasil build React (untuk produksi) ----------
+// Sajikan hasil build React hanya kalau folder client/dist ada (mode Render / satu layanan)
 const clientDist = path.join(__dirname, "../../client/dist");
-app.use(express.static(clientDist));
-app.get(/^\/(?!api).*/, (_req, res) => {
-  res.sendFile(path.join(clientDist, "index.html"));
-});
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get(/^\/(?!api).*/, (_req, res) => {
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+}
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`Server jalan di http://localhost:${PORT}`));
+// Di Vercel server tidak perlu listen sendiri, cukup export app
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => console.log(`Server jalan di http://localhost:${PORT}`));
+}
+
+export default app;
