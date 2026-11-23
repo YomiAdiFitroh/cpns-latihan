@@ -27,7 +27,7 @@ Deploy folder `server` sebagai project backend dan folder `client` sebagai proje
 
 1. Pada project backend, set Root Directory ke `server` dan tambahkan environment variable `DATABASE_URL` ke database PostgreSQL production.
 2. Pada project frontend, set Root Directory ke `client`.
-3. Deploy ulang backend agar endpoint `/api/*` tersedia, lalu deploy ulang frontend. Proxy frontend di `client/vercel.json` mengarah ke `https://cpns-latihan-35.vercel.app`.
+3. Deploy ulang backend agar endpoint `/api/*` tersedia, lalu deploy ulang frontend. Proxy frontend di `client/vercel.json` mengarah ke `https://cpns-latihan.vercel.app`.
 4. Jalankan migrasi dan seed database production sebelum mulai latihan.
 
 ## Tambah soal
