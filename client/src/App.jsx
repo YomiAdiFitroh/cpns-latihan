@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const SIZES = [10, 20, 30];
-// SKD asli: 110 soal dalam 100 menit (Kepmen PANRB 674/2026). Waktu sesi dihitung proporsional.
-const SECONDS_PER_QUESTION = (100 * 60) / 110;
+// SKD asli: 110 soal dalam 100 menit (Kepmen PANRB 674/2026).
+// Waktu sesi dihitung proporsional lalu dibulatkan ke menit penuh (10 soal = 9 menit, 20 = 18, 30 = 27).
+const minutesFor = (n) => Math.max(1, Math.round((n * 100) / 110));
+const limitFor = (n) => minutesFor(n) * 60;
+
 const SKD_TOTALS = {
   TWK: { count: 30, max: 150, passing: 65 },
   TIU: { count: 35, max: 175, passing: 80 },
@@ -12,10 +15,10 @@ const LETTERS = ["A", "B", "C", "D", "E"];
 const CONFETTI_COLORS = ["#d62839", "#ffd84d", "#1f9d6b", "#3a5bd9", "#1b1f3b"];
 
 const MODES = [
-  { value: "", title: "Campur", desc: "Komposisi mengikuti SKD asli (TWK 30 : TIU 35 : TKP 45)" },
-  { value: "TWK", title: "TWK", desc: "Nasionalisme, integritas, bela negara, empat konsensus, Bahasa Indonesia" },
-  { value: "TIU", title: "TIU", desc: "Verbal, numerik, dan figural" },
-  { value: "TKP", title: "TKP", desc: "Pelayanan publik, jejaring kerja, sosial budaya, TIK, profesionalisme, anti radikalisme" },
+  { value: "", icon: "🎲", title: "Campur", desc: "Komposisinya sama kayak SKD asli (TWK 30 : TIU 35 : TKP 45)" },
+  { value: "TWK", icon: "🏛️", title: "TWK", desc: "Nasionalisme, integritas, bela negara, empat konsensus, Bahasa Indonesia" },
+  { value: "TIU", icon: "🧠", title: "TIU", desc: "Verbal, numerik, dan figural" },
+  { value: "TKP", icon: "🤝", title: "TKP", desc: "Pelayanan publik, jejaring kerja, sosial budaya, TIK, profesionalisme, anti radikalisme" },
 ];
 
 async function api(path, options) {
@@ -29,8 +32,6 @@ async function api(path, options) {
 
 const fmt = (s) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-
-const minutesFor = (n) => Math.round((n * SECONDS_PER_QUESTION) / 60);
 
 function reducedMotion() {
   return (
@@ -74,13 +75,16 @@ function ScoreRing({ score, max, tone }) {
   const C = 2 * Math.PI * R;
   return (
     <div className={`ring ${tone}`} role="img" aria-label={`Skor ${score} dari ${max}`}>
-      <svg viewBox="0 0 200 200">
-        <circle className="ring-track" cx="100" cy="100" r={R} />
+      {/* width dan height sengaja diisi supaya ukurannya tetap wajar walau CSS gagal dimuat */}
+      <svg viewBox="0 0 200 200" width="230" height="230">
+        <circle className="ring-track" cx="100" cy="100" r={R} fill="none" stroke="#d3d9e8" strokeWidth="14" />
         <circle
           className="ring-fill"
           cx="100"
           cy="100"
           r={R}
+          fill="none"
+          strokeWidth="14"
           strokeDasharray={C}
           strokeDashoffset={filled ? C * (1 - pct) : C}
           transform="rotate(-90 100 100)"
@@ -128,15 +132,15 @@ function Confetti() {
 
 function verdictFor(pct) {
   if (pct >= 0.85) {
-    return { title: "Mantap, ini sudah level siap tempur", note: "Pertahankan ritme latihanmu." };
+    return { title: "Gila, ini sudah level siap tempur 🔥", note: "Pertahankan ritmenya, jangan kendor." };
   }
   if (pct >= 0.7) {
-    return { title: "Bagus, tinggal dipoles", note: "Cek pembahasan soal yang salah, biasanya polanya berulang." };
+    return { title: "Mantap, tinggal dipoles dikit lagi", note: "Cek pembahasan soal yang salah, biasanya polanya itu-itu aja." };
   }
   if (pct >= 0.5) {
-    return { title: "Lumayan, terus latihan", note: "Fokus ke subtes yang skornya paling rendah." };
+    return { title: "Lumayan, yuk naikin lagi", note: "Fokus ke subtes yang skornya paling rendah." };
   }
-  return { title: "Awal yang bagus, ayo ulang", note: "Baca pembahasannya pelan-pelan, lalu coba sesi baru." };
+  return { title: "Awal yang oke, yuk ulang pelan-pelan", note: "Baca pembahasannya dulu, lalu coba sesi baru." };
 }
 
 // Materi yang perlu diulang: soal kosong, salah, atau TKP dengan skor 3 ke bawah
@@ -209,10 +213,10 @@ export default function App() {
     try {
       const qs = await api(`/api/questions/random?count=${size}${mode ? `&category=${mode}` : ""}`);
       if (qs.length === 0) {
-        setError("Bank soal kosong. Jalankan npm run db:seed di folder server.");
+        setError("Bank soalnya masih kosong. Jalankan npm run db:seed di folder server dulu ya.");
         return;
       }
-      const lim = Math.round(qs.length * SECONDS_PER_QUESTION);
+      const lim = limitFor(qs.length);
       lockRef.current = false;
       deadlineRef.current = Date.now() + lim * 1000;
       setQuestions(qs);
@@ -226,7 +230,7 @@ export default function App() {
       setRemaining(lim);
       setView("quiz");
     } catch {
-      setError("Gagal terhubung ke server. Coba muat ulang halaman ini.");
+      setError("Yah, belum nyambung ke server. Coba muat ulang halaman ini.");
     } finally {
       setLoading(false);
     }
@@ -255,7 +259,7 @@ export default function App() {
       if (reason === "manual") setView("result");
       loadHistory();
     } catch {
-      setError("Jawaban belum terkirim. Periksa koneksi internet, lalu coba lagi.");
+      setError("Jawabanmu belum terkirim. Cek koneksi internet, lalu coba lagi.");
       lockRef.current = false;
     } finally {
       setLoading(false);
@@ -264,7 +268,7 @@ export default function App() {
 
   function submitManually() {
     const blank = questions.length - Object.keys(answers).length;
-    if (blank > 0 && !window.confirm(`Masih ada ${blank} soal yang belum dijawab. Kumpulkan sekarang?`)) {
+    if (blank > 0 && !window.confirm(`Masih ada ${blank} soal yang kosong nih. Tetap mau dikumpulkan?`)) {
       return;
     }
     finish("manual");
@@ -350,8 +354,8 @@ export default function App() {
             <span className="spacer" />
             <button className="btn primary" disabled={loading || submitted} onClick={submitManually}>
               {loading && submitted
-                ? "Mengumpulkan..."
-                : `Kumpulkan jawaban (${answeredCount}/${questions.length})`}
+                ? "Lagi dikumpulkan..."
+                : `Kumpulkan (${answeredCount}/${questions.length})`}
             </button>
           </div>
           {error && !overlay && <p className="error">{error}</p>}
@@ -363,8 +367,8 @@ export default function App() {
               <div className="timeout-clock">00:00</div>
               <h2 id="timeout-title">Waktu habis!</h2>
               <p>
-                {answeredCount} dari {questions.length} soal sempat kamu jawab. Jawabanmu dikumpulkan
-                otomatis.
+                Tenang, jawabanmu otomatis terkumpul. {answeredCount} dari {questions.length} soal sempat
+                kamu isi.
               </p>
               {result ? (
                 <button
@@ -374,7 +378,7 @@ export default function App() {
                     setView("result");
                   }}
                 >
-                  Lihat hasil
+                  Lihat hasilnya
                 </button>
               ) : error ? (
                 <>
@@ -385,7 +389,7 @@ export default function App() {
                 </>
               ) : (
                 <p className="sending">
-                  <span className="spinner" /> Mengumpulkan jawaban...
+                  <span className="spinner" /> Lagi ngumpulin jawabanmu...
                 </p>
               )}
             </div>
@@ -411,12 +415,12 @@ export default function App() {
       tone = result.passedAll ? "good" : "low";
       verdict = result.passedAll
         ? {
-            title: "Semua subtes di atas ambang batas",
-            note: "Ini estimasi dari sesi pendek. Di ujian asli ada 110 soal, jadi tetap perbanyak latihan.",
+            title: "Aman! Semua subtes lewat ambang batas 🎉",
+            note: "Ini estimasi dari sesi pendek ya. Ujian aslinya 110 soal, jadi tetap rutin latihan.",
           }
         : {
-            title: "Masih ada subtes di bawah ambang batas",
-            note: "Lihat subtes yang ditandai merah dan ulangi materinya.",
+            title: "Hampir, masih ada subtes di bawah ambang",
+            note: "Cek yang bertanda merah, lalu ulangi materinya.",
           };
     }
     const weak = weakTopics(result.review);
@@ -429,12 +433,12 @@ export default function App() {
           <div className="ring-wrap">
             <ScoreRing score={result.totalScore} max={maxTotal} tone={tone} />
             <div className={`stamp ${timedOut ? "stamp-red" : "stamp-ink"}`}>
-              {timedOut ? "Waktu habis" : "Dikumpulkan"}
+              {timedOut ? "Waktu habis" : "Terkumpul"}
             </div>
           </div>
           <h1>{verdict.title}</h1>
           <p className="lead centered">
-            {timedOut ? "Waktu habis sebelum kamu mengumpulkan, jadi jawabanmu dikumpulkan otomatis. " : ""}
+            {timedOut ? "Waktunya habis duluan, jadi jawabanmu dikumpulkan otomatis. " : ""}
             {verdict.note}
           </p>
           <p className="hint">
@@ -445,7 +449,7 @@ export default function App() {
         <section className="panel">
           <h2>Skor per subtes</h2>
           <div className="legend">
-            <i /> Garis merah menandai ambang batas SKD 2026 (kebutuhan umum), diskalakan sesuai jumlah soal
+            <i /> Garis merah = ambang batas SKD 2026 (kebutuhan umum), sudah disesuaikan dengan jumlah soal
           </div>
           <div className="cats">
             {present.map(([cat, t]) => (
@@ -455,7 +459,7 @@ export default function App() {
                   <span>
                     {t.score} / {t.max}
                     <span className={`badge ${t.passed ? "ok" : "no"}`}>
-                      {t.passed ? "Ambang terlampaui" : "Di bawah ambang"}
+                      {t.passed ? "Lewat ambang" : "Di bawah ambang"}
                     </span>
                   </span>
                 </div>
@@ -477,13 +481,13 @@ export default function App() {
             ))}
           </div>
           <p className="hint">
-            TWK dan TIU: 5 poin per soal benar. TKP: 1 sampai 5 poin tergantung jawaban. Soal yang tidak
-            dijawab bernilai 0. Sesi pendek hanya estimasi kasar dibandingkan 110 soal penuh.
+            TWK dan TIU: 5 poin per jawaban benar. TKP: 1 sampai 5 poin tergantung jawaban. Soal kosong
+            bernilai 0. Sesi pendek cuma estimasi kasar dibanding 110 soal penuh.
           </p>
 
           {weak.length > 0 && (
             <div className="weak">
-              <strong>Materi yang perlu diulang</strong>
+              <strong>Yang perlu diulang</strong>
               <ul>
                 {weak.slice(0, 5).map(([key, n]) => (
                   <li key={key}>
@@ -524,14 +528,14 @@ export default function App() {
                   );
                 })}
               </ul>
-              {status === "skip" && <p className="error">Soal ini tidak dijawab.</p>}
+              {status === "skip" && <p className="error">Soal ini belum kamu jawab.</p>}
               <p className="explanation">{r.explanation}</p>
             </article>
           );
         })}
 
         <button className="btn primary big" onClick={() => setView("home")}>
-          Latihan lagi
+          Latihan lagi, yuk
         </button>
       </main>
     );
@@ -543,24 +547,27 @@ export default function App() {
   return (
     <main className="container">
       <header className="hero">
-        <h1>Latihan SKD CPNS</h1>
+        <span className="pill">Kisi-kisi SKD 2026</span>
+        <h1>
+          Latihan <span className="hl">SKD CPNS</span>
+        </h1>
         <p className="lead">
-          Soal disusun mengikuti kisi-kisi SKD 2026. Pilih subtes dan jumlah soal, kerjakan dengan waktu
-          yang diskalakan dari ujian asli, lalu cek pembahasannya.
+          Latihan soal yang nggak bikin tegang. Pilih subtes, atur jumlah soalnya, terus gas kerjakan.
+          Habis itu cek pembahasannya biar makin paham.
         </p>
       </header>
 
       <section className="panel">
         <div className="format-box">
           <p>
-            <strong>Format SKD asli (Kepmen PANRB 674/2026):</strong> 110 soal dalam 100 menit, terdiri dari
-            TWK 30 soal, TIU 35 soal, dan TKP 45 soal.
+            <strong>Biar kebayang ujian aslinya (Kepmen PANRB 674/2026):</strong> 110 soal dalam 100
+            menit, dengan TWK 30 soal, TIU 35 soal, dan TKP 45 soal.
           </p>
-          <p>Skor TWK dan TIU: 5 poin per jawaban benar. TKP: 1 sampai 5 poin. Tidak dijawab: 0.</p>
-          <p>Ambang batas kebutuhan umum: TWK 65, TIU 80, TKP 166. Semuanya harus terpenuhi.</p>
+          <p>Skor TWK dan TIU: 5 poin per jawaban benar. TKP: 1 sampai 5 poin. Kosong: 0.</p>
+          <p>Ambang batas kebutuhan umum: TWK 65, TIU 80, TKP 166. Ketiganya harus terpenuhi.</p>
         </div>
 
-        <h2>Pilih subtes</h2>
+        <h2>Mau latihan apa hari ini?</h2>
         <div className="modes" role="radiogroup" aria-label="Pilih subtes">
           {MODES.map((m) => (
             <label key={m.value} className={`mode ${mode === m.value ? "active" : ""}`}>
@@ -572,14 +579,16 @@ export default function App() {
               />
               <span className="bubble" aria-hidden="true" />
               <span className="mode-text">
-                <strong>{m.title}</strong>
+                <strong>
+                  {m.icon} {m.title}
+                </strong>
                 <small>{m.desc}</small>
               </span>
             </label>
           ))}
         </div>
 
-        <h2>Jumlah soal</h2>
+        <h2>Mau berapa soal?</h2>
         <div className="modes three" role="radiogroup" aria-label="Jumlah soal">
           {SIZES.map((n) => (
             <label key={n} className={`mode ${size === n ? "active" : ""}`}>
@@ -587,22 +596,22 @@ export default function App() {
               <span className="bubble" aria-hidden="true" />
               <span className="mode-text">
                 <strong>{n} soal</strong>
-                <small>Sekitar {minutesFor(n)} menit</small>
+                <small>{minutesFor(n)} menit</small>
               </span>
             </label>
           ))}
         </div>
 
         <button className="btn primary big" disabled={loading} onClick={start}>
-          {loading ? "Memuat soal..." : "Mulai latihan"}
+          {loading ? "Nyiapin soal..." : "Gas mulai latihan"}
         </button>
         {error && <p className="error">{error}</p>}
       </section>
 
       <section className="panel">
-        <h2>Latihan sebelumnya</h2>
+        <h2>Riwayat latihanmu</h2>
         {history.length === 0 ? (
-          <p className="hint">Belum ada riwayat. Selesaikan satu sesi dulu.</p>
+          <p className="hint">Belum ada riwayat. Selesaikan satu sesi dulu, yuk.</p>
         ) : (
           <>
             <p className="hint">Skor tertinggimu sejauh ini: {bestScore}</p>
