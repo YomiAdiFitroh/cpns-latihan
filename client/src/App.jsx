@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import Swal from "sweetalert2";
 
 const SIZES = [10, 20, 30];
 // SKD asli: 110 soal dalam 100 menit (Kepmen PANRB 674/2026).
@@ -20,6 +21,25 @@ const MODES = [
   { value: "TIU", icon: "🧠", title: "TIU", desc: "Verbal, numerik, dan figural" },
   { value: "TKP", icon: "🤝", title: "TKP", desc: "Pelayanan publik, jejaring kerja, sosial budaya, TIK, profesionalisme, anti radikalisme" },
 ];
+
+// Popup SweetAlert2 yang senada dengan tema: tombolnya memakai kelas .btn milik kita
+const swal = Swal.mixin({
+  buttonsStyling: false,
+  customClass: {
+    popup: "swal-popup",
+    confirmButton: "btn primary",
+    cancelButton: "btn",
+  },
+});
+
+const toast = Swal.mixin({
+  toast: true,
+  position: "bottom",
+  showConfirmButton: false,
+  timer: 5000,
+  timerProgressBar: true,
+  customClass: { popup: "swal-toast" },
+});
 
 async function api(path, options) {
   const res = await fetch(path, {
@@ -176,6 +196,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const deadlineRef = useRef(0);
   const lockRef = useRef(false);
+  const warnedRef = useRef(false);
 
   async function loadHistory() {
     try {
@@ -207,22 +228,36 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining, view]);
 
+  // Peringatan saat sisa waktu 1 menit
+  useEffect(() => {
+    if (view === "quiz" && !submitted && limit > 90 && remaining === 60 && !warnedRef.current) {
+      warnedRef.current = true;
+      toast.fire({ icon: "warning", title: "Sisa 1 menit! Cek soal yang masih kosong." });
+    }
+  }, [remaining, view, submitted, limit]);
+
   async function start() {
     setLoading(true);
-    setError("");
     try {
       const qs = await api(`/api/questions/random?count=${size}${mode ? `&category=${mode}` : ""}`);
       if (qs.length === 0) {
-        setError("Bank soalnya masih kosong. Jalankan npm run db:seed di folder server dulu ya.");
+        swal.fire({
+          icon: "info",
+          title: "Bank soalnya masih kosong",
+          text: "Jalankan npm run db:seed di folder server dulu ya.",
+          confirmButtonText: "Oke",
+        });
         return;
       }
       const lim = limitFor(qs.length);
       lockRef.current = false;
+      warnedRef.current = false;
       deadlineRef.current = Date.now() + lim * 1000;
       setQuestions(qs);
       setAnswers({});
       setIndex(0);
       setResult(null);
+      setError("");
       setUsed(0);
       setSubmitted(false);
       setOverlay(false);
@@ -230,7 +265,12 @@ export default function App() {
       setRemaining(lim);
       setView("quiz");
     } catch {
-      setError("Yah, belum nyambung ke server. Coba muat ulang halaman ini.");
+      swal.fire({
+        icon: "error",
+        title: "Belum nyambung ke server",
+        text: "Coba muat ulang halaman ini atau cek koneksi internetmu.",
+        confirmButtonText: "Oke",
+      });
     } finally {
       setLoading(false);
     }
@@ -239,6 +279,8 @@ export default function App() {
   async function finish(reason) {
     if (lockRef.current) return;
     lockRef.current = true;
+    // Kalau waktu habis saat popup konfirmasi masih terbuka, tutup popup-nya
+    if (reason === "timeout") Swal.close();
     const left = Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000));
     setUsed(limit - left);
     setSubmitted(true);
@@ -259,19 +301,59 @@ export default function App() {
       if (reason === "manual") setView("result");
       loadHistory();
     } catch {
-      setError("Jawabanmu belum terkirim. Cek koneksi internet, lalu coba lagi.");
       lockRef.current = false;
+      if (reason === "timeout") {
+        // Layar waktu habis menampilkan tombol kirim ulang
+        setError("Jawabanmu belum terkirim. Cek koneksi internet, lalu coba lagi.");
+      } else {
+        setSubmitted(false);
+        swal.fire({
+          icon: "error",
+          title: "Jawabanmu belum terkirim",
+          text: "Cek koneksi internetmu, lalu coba kumpulkan lagi. Jawabanmu masih aman di layar ini.",
+          confirmButtonText: "Oke",
+        });
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  function submitManually() {
+  async function submitManually() {
+    if (lockRef.current) return;
     const blank = questions.length - Object.keys(answers).length;
-    if (blank > 0 && !window.confirm(`Masih ada ${blank} soal yang kosong nih. Tetap mau dikumpulkan?`)) {
-      return;
-    }
+    const { isConfirmed } = await swal.fire({
+      icon: blank > 0 ? "warning" : "question",
+      title: blank > 0 ? "Masih ada soal kosong" : "Kumpulkan jawaban?",
+      text:
+        blank > 0
+          ? `${blank} soal belum kamu jawab dan nilainya 0. Tetap mau dikumpulkan?`
+          : "Semua soal sudah terjawab. Setelah dikumpulkan, jawabanmu nggak bisa diubah lagi.",
+      showCancelButton: true,
+      confirmButtonText: "Kumpulkan",
+      cancelButtonText: "Balik dulu",
+      reverseButtons: true,
+      focusCancel: blank > 0,
+    });
+    if (!isConfirmed || lockRef.current) return;
     finish("manual");
+  }
+
+  async function quit() {
+    if (lockRef.current) return;
+    const { isConfirmed } = await swal.fire({
+      icon: "question",
+      title: "Keluar dari sesi?",
+      text: "Progres sesi ini nggak akan disimpan.",
+      showCancelButton: true,
+      confirmButtonText: "Keluar",
+      cancelButtonText: "Lanjut latihan",
+      reverseButtons: true,
+      focusCancel: true,
+    });
+    if (!isConfirmed || lockRef.current) return;
+    lockRef.current = true;
+    setView("home");
   }
 
   // ---------- QUIZ ----------
@@ -358,7 +440,10 @@ export default function App() {
                 : `Kumpulkan (${answeredCount}/${questions.length})`}
             </button>
           </div>
-          {error && !overlay && <p className="error">{error}</p>}
+
+          <button className="linklike" disabled={submitted} onClick={quit}>
+            Keluar dari sesi
+          </button>
         </main>
 
         {overlay && (
@@ -605,7 +690,6 @@ export default function App() {
         <button className="btn primary big" disabled={loading} onClick={start}>
           {loading ? "Nyiapin soal..." : "Gas mulai latihan"}
         </button>
-        {error && <p className="error">{error}</p>}
       </section>
 
       <section className="panel">
